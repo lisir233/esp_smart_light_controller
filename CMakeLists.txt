@@ -17,5 +17,6 @@ set(EXTRA_COMPONENT_DIRS $ENV{HOMEKIT_PATH}/components/homekit ${RMAKER_PATH}/co
 
 set(PROJECT_VER "1.0")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+add_compile_options(-fdiagnostics-color=always)
 project(esp_smart_light_controller
 )

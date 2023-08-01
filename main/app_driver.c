@@ -30,6 +30,9 @@ static const char *TAG = "app_driver";
 #define OUTPUT_GPIO    CONFIG_EXAMPLE_OUTPUT_GPIO
 static bool g_power_state = DEFAULT_POWER;
 
+
+#define BOARD_POWER_IO    5
+#define BOARD_LED_IO    7
 /* This is the GPIO on which the servo power will be set */
 #define SERVO_POWER_GPIO    6
 #define DEFAULT_PWM_SERVO_STATE false
@@ -167,6 +170,18 @@ void app_driver_init()
     io_conf.pin_bit_mask = ((uint64_t)1 << OUTPUT_GPIO);
     /* Configure the GPIO */
     gpio_config(&io_conf);
+
+    io_conf.pull_up_en = 0;
+    io_conf.pin_bit_mask = ((uint64_t)1 << BOARD_POWER_IO);
+    /* Configure the GPIO */
+    gpio_config(&io_conf);
+    
+    io_conf.pull_up_en = 0;
+    io_conf.pin_bit_mask = ((uint64_t)1 << BOARD_LED_IO);
+    /* Configure the GPIO */
+    gpio_config(&io_conf);
+    gpio_set_level(BOARD_POWER_IO, 1);
+    gpio_set_level(BOARD_LED_IO, 0);
     app_indicator_init();
     app_servo_init();
 }

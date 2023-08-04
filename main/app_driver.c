@@ -16,7 +16,7 @@
 #include <app_reset.h>
 #include <ws2812_led.h>
 #include "app_priv.h"
-
+#include "pwm_servo.h"
 /* This is the button that is used for toggling the power */
 #define BUTTON_GPIO          CONFIG_EXAMPLE_BOARD_BUTTON_GPIO
 #define BUTTON_ACTIVE_LEVEL  0

@@ -17,15 +17,12 @@
 #include <ws2812_led.h>
 #include <esp_log.h>
 #include "app_priv.h"
-<<<<<<< HEAD
 #include "pwm_servo.h"
-=======
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include "pwm_servo.h"
 static const char *TAG = "app_driver";
->>>>>>> 4b5179e9ce075b894b4f82a2a38e1449fd10616a
 /* This is the button that is used for toggling the power */
 #define BUTTON_GPIO          CONFIG_EXAMPLE_BOARD_BUTTON_GPIO
 #define BUTTON_ACTIVE_LEVEL  0

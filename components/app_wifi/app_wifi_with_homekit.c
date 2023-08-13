@@ -337,6 +337,11 @@ void app_wifi_with_homekit_init(void)
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    wifi_config_t wifi_config;
+    ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &wifi_config));
+    wifi_config.sta.listen_interval = 4;
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 }
 
 static void app_wifi_prov_stop(void *priv)

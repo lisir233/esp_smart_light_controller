@@ -182,7 +182,8 @@ void app_driver_init()
     /* Configure the GPIO */
     gpio_config(&io_conf);
     gpio_set_level(BOARD_POWER_IO, 1);
-    gpio_set_level(BOARD_LED_IO, 0);
+    gpio_hold_en(BOARD_POWER_IO);
+    gpio_set_level(BOARD_LED_IO, 1);
     app_indicator_init();
     app_servo_init();
 }

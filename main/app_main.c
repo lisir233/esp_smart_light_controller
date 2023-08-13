@@ -27,7 +27,7 @@
 
 #include "app_wifi_with_homekit.h"
 #include "app_priv.h"
-
+#include "esp_pm.h"
 static const char *TAG = "app_main";
 esp_rmaker_device_t *switch_device;
 
@@ -155,6 +155,19 @@ void app_main()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK( err );
+#if CONFIG_PM_ENABLE
+    // Configure dynamic frequency scaling:
+    // maximum and minimum frequencies are set in sdkconfig,
+    // automatic light sleep is enabled if tickless idle support is enabled.
+    esp_pm_config_esp32c3_t pm_config = {
+            .max_freq_mhz = 160,
+            .min_freq_mhz = 40,
+#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
+            .light_sleep_enable = true
+#endif
+    };
+    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+#endif // CONFIG_PM_ENABLE
 
     /* Initialize Wi-Fi. Note that, this should be called before esp_rmaker_node_init()
      */

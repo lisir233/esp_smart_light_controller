@@ -28,6 +28,7 @@
 #include "app_wifi_with_homekit.h"
 #include "app_priv.h"
 #include "esp_pm.h"
+#include <esp_wifi.h>
 static const char *TAG = "app_main";
 esp_rmaker_device_t *switch_device;
 
@@ -155,15 +156,16 @@ void app_main()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK( err );
+    
 #if CONFIG_PM_ENABLE
     // Configure dynamic frequency scaling:
     // maximum and minimum frequencies are set in sdkconfig,
     // automatic light sleep is enabled if tickless idle support is enabled.
     esp_pm_config_esp32c3_t pm_config = {
             .max_freq_mhz = 160,
-            .min_freq_mhz = 40,
+            .min_freq_mhz = 80,
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-            .light_sleep_enable = true
+            .light_sleep_enable = true,
 #endif
     };
     ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
@@ -173,6 +175,14 @@ void app_main()
      */
     app_wifi_with_homekit_init();
 
+    wifi_config_t wifi_config;
+    ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &wifi_config));
+    if(strcmp((char *)wifi_config.sta.ssid,"") != 0){
+        wifi_config.sta.listen_interval = 4;
+        err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+        esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+        printf("WIFI_PS_MAX_MODEM set!\n");
+    }
     /* Register an event handler to catch RainMaker events */
     ESP_ERROR_CHECK(esp_event_handler_register(RMAKER_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(RMAKER_COMMON_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
@@ -244,5 +254,5 @@ void app_main()
         ESP_LOGE(TAG, "Could not start Wifi. Aborting!!!");
         vTaskDelay(5000/portTICK_PERIOD_MS);
         abort();
-    }
+    }   
 }

@@ -7,8 +7,8 @@
 #define PWM_SERVO_IO                     (4) // Define the output GPIO
 #define PWM_SERVO_LEDC_CHANNEL           LEDC_CHANNEL_0
 #define PWM_SERVO_LEDC_DUTY_RES          LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
-#define PWM_SERVO_LEDC_DUTY_OFF          (410) // Set duty to 5%. ((2 ** 13) - 1) * 5% = 410
-#define PWM_SERVO_LEDC_DUTY_ON           (2078) // Set duty to 25%. ((2 ** 13) - 1) * 50% = 2048
+#define PWM_SERVO_LEDC_DUTY_OFF          (520) // Set duty to 5%. ((2 ** 13) - 1) * 5% = 410  //1.5ms 614
+#define PWM_SERVO_LEDC_DUTY_ON           (820) // Set duty to 25%. ((2 ** 13) - 1) * 20% = 2048 //
 #define PWM_SERVO_LEDC_FREQUENCY         (100) // Frequency in Hertz. Set frequency at 100 Hz
 
 void pwm_servo_init(void)
@@ -19,7 +19,7 @@ void pwm_servo_init(void)
         .timer_num        = PWM_SERVO_LEDC_TIMER,
         .duty_resolution  = PWM_SERVO_LEDC_DUTY_RES,
         .freq_hz          = PWM_SERVO_LEDC_FREQUENCY,  // Set output frequency at 5 kHz
-        .clk_cfg          = LEDC_AUTO_CLK
+        .clk_cfg          = LEDC_USE_RTC8M_CLK
     };
     ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 

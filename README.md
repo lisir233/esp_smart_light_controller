@@ -2,7 +2,7 @@
 ## [中文介绍](./doc/README_CN.md)
 
 The ESP32-C3 Switch Panda is designed to serve lazy individuals, eliminating the need for them to get out of bed to search for the switch. With just a gentle touch on the notification bar, you can enjoy an elegant and convenient lighting control experience. Leave the task of turning off the lights to the Switch Panda, allowing lazy individuals to lie down flatter and more comfortably. This project successfully tackles the significant challenge of turning off the lights before bedtime during the winter season.
-
+![image-11](./doc/pic/main-middle-original.gif)
 ![image-20230923130225741](./doc/pic/image-20230923130225741.png)
 
 ## Advantages of the Project

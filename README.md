@@ -1,58 +1,92 @@
-# HomeKit Switch Example
+# ESP32-C3 开关熊猫 Switch Panda 
+## [中文介绍](./doc/README_CN.md)
 
-This example demonstrates ESP RainMaker + HomeKit integration using the [esp-homekit-sdk](https://github.com/espressif/esp-homekit-sdk).
+The ESP32-C3 Switch Panda is designed to serve lazy individuals, eliminating the need for them to get out of bed to search for the switch. With just a gentle touch on the notification bar, you can enjoy an elegant and convenient lighting control experience. Leave the task of turning off the lights to the Switch Panda, allowing lazy individuals to lie down flatter and more comfortably. This project successfully tackles the significant challenge of turning off the lights before bedtime during the winter season.
 
-## Setup
+![image-20230923130225741](https://37849402281.ai701.live/pic/image-20230923130225741.png)
 
-Compiling this example would need the [esp-homekit-sdk](https://github.com/espressif/esp-homekit-sdk) repository. Clone it at a suitable location using:
+## Advantages of the Project
 
-```
-git clone --recursive https://github.com/espressif/esp-homekit-sdk.git
-```
+1. **Direct HomeKit Connection**: Enables local network control, supports Siri control and direct control through the notification bar, with fast response. It can also be integrated with the ESP Rainmaker cloud platform for remote control.
 
-Export the path to this repository using:
+2. **Easy Configuration**: Only requires scanning the QR code twice to complete the configuration, allowing you to start using it with ease.
 
-```
-export HOMEKIT_PATH=/path/to/esp-homekit-sdk/
-```
+3. **Low Power Consumption Configuration**: Balances fast response and battery life. Equipped with a 2000mAh battery, it can achieve a standby time of approximately 90 days with ESP Rainmaker control alone, and approximately 45 days with HomeKit+ESP Rainmaker.
 
-## Build and Flash firmware
+4. Zero-code Replication
 
-Follow the ESP RainMaker Documentation [Get Started](https://rainmaker.espressif.com/docs/get-started.html) section to build and flash this firmware. Just note the path of this example. Note that, on bootup, the serial terminal will show 2 QR codes, one small and the other large. The smaller QR code is to be used for HomeKit pairing from the iOS Home app, whereas the larger one is supposed to be used with ESP RainMaker app.
+   : The code, hardware, and structure are completely open source.
 
-> Note: HomeKit pairing can be done only after the device connects to the Wi-Fi network. However, if you have the MFi variant of the ESP HomeKit SDK, the QR code can be used for WAC Provisioning as well.
-> The same QR code may be shown multiple times, so that it is available on screen whenever the device is in HomeKit pairing mode.
+   - Firmware supports one-click burning, eliminating the need for burning tools or downloading any development environment.
+   - All materials are selected with easy-to-solder packages, and as many components as possible can be purchased from reliable sources.
+   - Provides purchase links for major components.
 
-## What to expect in this example?
+5. Supports low battery level alerts and automatic shutdown, ensuring stable functionality.
 
-- This example uses the BOOT button and RGB LED on the ESP32-S2-Saola-1/ESP32-C3-DevKitC board to demonstrate a switch with HomeKit integration.
-- The LED state (green color) indicates the state of the switch.
-- Pressing the BOOT button will toggle the state of the switch and hence the LED. This will also reflect on the phone app.
-- Toggling the button on the phone app should toggle the LED on your board, and also print messages like these on the ESP32-S2 monitor:
+6. Elegant design with a total material cost of approximately 30 yuan.
 
-```
-I (16073) app_main: Received value = true for Switch - power
-```
-- Once the board is set up, it can also be paired from iOS Home App. Follow the steps as given in next section.
+## Zero-code Replication
 
-## Using with iOS Home app
-Open the Home app on your iPhone/iPad and follow these steps:
+Prerequisites: You have an ESP32-C3 Switch Panda. Other ESP32-C3 development boards can also be used, but you will need to connect the servo motor yourself, otherwise you can only observe the control effect through logs*.
 
-- Tap on "Add Accessory" and scan the small QR code mentioned above.
-- If QR code is not visible correctly, you may use the link printed on the serial terminal or follow these steps:
-    - Choose the "I Don't Have a Code or Cannot Scan" option.
-    - Tap on "ESP RainMaker Device" in the list of Nearby Accessories.
-    - Select the "Add Anyway" option for the "Uncertified Accessory" prompt.
-    - Enter 11122333 as the Setup code.
-- You should eventually see the "ESP RainMaker Device added" message.
-- Give a custom name, assign to a room, create scenes as required and you are done.
+1. Burning:
 
-Now, any changes from ESP RainMaker will reflect on HomeKit and vice-versa. Changes from push button will reflect on both.
+   1. Click on the image below to jump to the burning page:
 
-### LED not working?
+   <a href="https://espressif.github.io/esp-launchpad/?flashConfigURL=https://lisir233.github.io/esp_smart_light_controller/config.toml"> <img alt="Try it with ESP Launchpad" src="https://espressif.github.io/esp-launchpad/assets/try_with_launchpad.png" width="250" height="70"> </a>
 
-The ESP32-S2-Saola-1 board has the RGB LED connected to GPIO 18. However, a few earlier boards may have it on GPIO 17. Please use `CONFIG_WS2812_LED_GPIO` to set the appropriate value.
+    2. Connect the Switch Panda to your computer.
 
-### Reset to Factory
+    3. Press and hold the Reset button and the BOOT button (IO9) on the Switch Panda at the same time, then release the BOOT button first and then the Reset button to force the chip into burning mode.
 
-Press and hold the BOOT button for more than 3 seconds to reset the board to factory defaults. You will have to provision the board again to use it.
+    4. Click "Connect" and select the corresponding serial port for the Switch Panda to establish a connection. The serial port name is usually similar to `USB JTAG/serial debug unit (COMXX) - Paired`.
+
+    5. Click "Flash" to start burning.
+
+2. Network configuration:
+
+   1. After burning is complete, press the Reset button on the Switch Panda.
+   2. Click "Connect" on the webpage and select the serial port to connect to the device.
+   3. Click "Console" on the webpage to enter the console page, and click "Reset Device".
+   4. Wait a moment, and two QR codes will be displayed on the console, one large and one small. Ignore the small QR code and use the Rainmaker app to scan the large QR code to configure the device. Once completed, you can control the device using the app. At the same time, a small QR code will be generated in the console.
+   5. Use the built-in Apple Home app to scan the small QR code to bind the device.
+
+3. Done!
+
+## Compilation and Code Modification
+
+If you want to make modifications based on this code, please follow the steps below to compile:
+
+Prerequisites: ESP-IDF needs to be installed, and the code for ESP Rainmaker and ESP HomeKit SDK needs to be pulled. Links are provided, and if you encounter any issues, please feel free to open an issue in the project.
+
+1. Make sure the above environment is installed and the paths are correctly imported.
+
+2. Clone this repository under the esp-rainmaker/example directory:
+
+   ```
+   cd esp-rainmaker/examples/
+   git clone git@github.com:lisir233/esp_smart_light_controller.git
+   ```
+
+3. Build
+
+   ```
+   cd esp_smart_light_controller
+   idf.py build
+   ```
+
+## Additional Links:
+
+Hardware Open Source Links:
+
+ESP-IDF: [espressif/esp-idf: Espressif IoT Development Framework. Official development framework for Espressif SoCs. (github.com)](https://github.com/espressif/esp-idf)
+
+ESP Rainmaker: [espressif/esp-rainmaker: ESP RainMaker Agent for firmware development (github.com)](https://github.com/espressif/esp-rainmaker)
+
+ESP HomeKit SDK: [espressif/esp-homekit-sdk (github.com)](https://github.com/espressif/esp-homekit-sdk)
+
+## F&Q
+
+- Burning failure:
+  - Make sure the battery is connected during burning.
+  - Check if the computer recognizes that the device is connected. If not, check if the hardware is soldered correctly and ensure that the selected data cable is capable of data transmission.

@@ -7,10 +7,9 @@
 #define PWM_SERVO_IO                     (4) // Define the output GPIO
 #define PWM_SERVO_LEDC_CHANNEL           LEDC_CHANNEL_0
 #define PWM_SERVO_LEDC_DUTY_RES          LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
-#define PWM_SERVO_LEDC_DUTY_OFF          (520) // Set duty to 5%. ((2 ** 13) - 1) * 5% = 410  //1.5ms 614
-#define PWM_SERVO_LEDC_DUTY_ON           (820) // Set duty to 25%. ((2 ** 13) - 1) * 20% = 2048 //
 #define PWM_SERVO_LEDC_FREQUENCY         (100) // Frequency in Hertz. Set frequency at 100 Hz
-
+#define PWM_SERVO_LEDC_DUTY_MIN          (410)  //0.5ms
+#define PWM_SERVO_LEDC_DUTY_MAX          (2047) //2.5ms
 void pwm_servo_init(void)
 {
     // Prepare and then apply the LEDC PWM timer configuration
@@ -36,16 +35,11 @@ void pwm_servo_init(void)
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
 }
-void pwm_servo_set(bool onoff)
+void pwm_servo_set(int value)
 {
-    if(onoff){
-        // Set duty
-        ESP_ERROR_CHECK(ledc_set_duty(PWM_SERVO_LEDC_MODE, PWM_SERVO_LEDC_CHANNEL, PWM_SERVO_LEDC_DUTY_ON));
-    }
-    else{
-        // Set duty
-        ESP_ERROR_CHECK(ledc_set_duty(PWM_SERVO_LEDC_MODE, PWM_SERVO_LEDC_CHANNEL, PWM_SERVO_LEDC_DUTY_OFF));
-    }
+    ESP_ERROR_CHECK(ledc_set_duty(PWM_SERVO_LEDC_MODE, PWM_SERVO_LEDC_CHANNEL, PWM_SERVO_LEDC_DUTY_MIN + (PWM_SERVO_LEDC_DUTY_MAX - PWM_SERVO_LEDC_DUTY_MIN) * value /100));
+    // printf("pwm_set_duty %d\n",PWM_SERVO_LEDC_DUTY_MIN + (PWM_SERVO_LEDC_DUTY_MAX - PWM_SERVO_LEDC_DUTY_MIN) * value /100);
     // Update duty to apply the new value
     ESP_ERROR_CHECK(ledc_update_duty(PWM_SERVO_LEDC_MODE, PWM_SERVO_LEDC_CHANNEL));
+    
 }

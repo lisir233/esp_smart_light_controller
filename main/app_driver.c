@@ -20,6 +20,7 @@
 #include "pwm_servo.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <freertos/queue.h>
 
 #include "pwm_servo.h"
 #include "esp_adc/adc_oneshot.h"
@@ -28,6 +29,8 @@
 #include "driver/gpio.h"
 #include "esp_timer.h"
 #include <esp_rmaker_utils.h>
+#include "nvs_flash.h"
+#include "nvs.h"
 static const char *TAG = "app_driver";
 /* This is the button that is used for toggling the power */
 #define BUTTON_GPIO          CONFIG_EXAMPLE_BOARD_BUTTON_GPIO
@@ -44,8 +47,11 @@ static bool g_power_state = DEFAULT_POWER;
 #define SERVO_POWER_GPIO    6
 #define DEFAULT_PWM_SERVO_STATE false
 #define DEFAULT_SERVO_POWER_STATE false
-#define SERVO_EXECUTION_TIME 100    //ms
+#define SERVO_EXECUTION_TIME 110    //ms
 static bool g_pwm_servo_state = DEFAULT_PWM_SERVO_STATE;
+int g_pwm_servo_up_level = DEFAULT_LIMIT_UP;
+int g_pwm_servo_down_level = DEFAULT_LIMIT_DOWN;
+
 static TaskHandle_t  servo_task_handle = NULL;
 
 #define BATTERY_ADC_CHANNEL         ADC_CHANNEL_3
@@ -63,13 +69,6 @@ static gpio_int_type_t button1_intr_type = GPIO_INTR_HIGH_LEVEL;
 
 #define REBOOT_DELAY        2
 #define RESET_DELAY         2
-typedef enum
-{
-    SERVO_EXECUTION_OFF = 0,
-    SERVO_EXECUTION_ON,
-    SERVO_EXECUTION_TOGGLE,
-    SERVO_EXECUTION_CLICK,
-} servo_execution_t;
 
 
 /* These values correspoind to H,S,V = 120,100,10 */
@@ -80,6 +79,64 @@ typedef enum
 #define WIFI_RESET_BUTTON_TIMEOUT       3
 #define FACTORY_RESET_BUTTON_TIMEOUT    10
 
+#define APP_DRIVER_QUEUE_SIZE 10
+QueueHandle_t app_driver_evt_queue;
+
+static void app_nvs_get_limit_value(void)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("app_driver", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        printf("Error opening NVS handle! %s\n",esp_err_to_name(err));
+    } else {
+        err = nvs_get_i32(nvs_handle, "up", &g_pwm_servo_up_level);
+        if (err != ESP_OK) {
+            printf("no value\n");
+
+        } else {
+            printf("read up value %d\n",g_pwm_servo_up_level);
+        }
+        err = nvs_get_i32(nvs_handle, "down", &g_pwm_servo_down_level);
+        if (err != ESP_OK) {
+            printf("no value\n");
+
+        } else {
+            printf("read down value %d\n",g_pwm_servo_down_level);
+        }
+
+        // 关闭NVS
+        nvs_close(nvs_handle);
+    }
+}
+void app_nvs_set_limit_value(int up,int down)
+{
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open("app_driver", NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        printf("Error opening NVS handle! %s\n",esp_err_to_name(err));
+    } else {
+        err = nvs_set_i32(nvs_handle, "up", up);
+        if (err != ESP_OK) {
+            printf("Error setting value!\n");
+        } else {
+            printf("Value set!\n");
+        }
+        err = nvs_set_i32(nvs_handle, "down", down);
+        if (err != ESP_OK) {
+            printf("Error setting value!\n");
+        } else {
+            printf("Value set!\n");
+        }
+
+        // 提交更改
+        err = nvs_commit(nvs_handle);
+        if (err != ESP_OK) {
+            printf("Error committing data!\n");
+        }
+        // 关闭NVS
+        nvs_close(nvs_handle);
+    }
+}
 void app_indicator_set(bool state)
 {
     if (state) {
@@ -89,64 +146,56 @@ void app_indicator_set(bool state)
     }
 }
 void app_servo_set_state(bool state){
-    xTaskNotify(servo_task_handle, (uint32_t)state,eSetValueWithoutOverwrite);
+   app_driver_evt_t app_driver_evt;
+   app_driver_evt.event_type = APP_DRIVER_STATE_CHANGE;
+   app_driver_evt.event_value = state;
+   xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
 }
-void app_servo_click(void)
-{
-    xTaskNotify(servo_task_handle, (uint32_t)SERVO_EXECUTION_CLICK,eSetValueWithoutOverwrite);
-}
+
 static void servo_task(void* pvParameters)
 {
-   static servo_execution_t servo_execution = SERVO_EXECUTION_OFF;
    esp_pm_lock_handle_t servo_task_pm_lock;
    esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "servo", &servo_task_pm_lock);
+   app_driver_evt_t app_driver_evt;
+    while (1) {
+        if (xQueueReceive(app_driver_evt_queue, &app_driver_evt, portMAX_DELAY)) {
+            if(app_driver_evt.event_type == APP_DRIVER_STATE_CHANGE){
+                esp_pm_lock_acquire(servo_task_pm_lock);
+                gpio_set_level(SERVO_POWER_GPIO, 1);
+                gpio_hold_en(SERVO_POWER_GPIO);
+                g_pwm_servo_state = app_driver_evt.event_value;
+                pwm_servo_set(g_pwm_servo_state == true? g_pwm_servo_up_level:g_pwm_servo_down_level);
+                vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
+                gpio_hold_dis(SERVO_POWER_GPIO);
+                gpio_set_level(SERVO_POWER_GPIO, 0);
+                esp_pm_lock_release(servo_task_pm_lock);
+            }
+            else if(app_driver_evt.event_type == APP_DRIVER_SET_SERVO_ON_LEVEL){
+                esp_pm_lock_acquire(servo_task_pm_lock);
+                gpio_set_level(SERVO_POWER_GPIO, 1);
+                gpio_hold_en(SERVO_POWER_GPIO);
+                g_pwm_servo_up_level = app_driver_evt.event_value;
+                app_nvs_set_limit_value(g_pwm_servo_up_level,g_pwm_servo_down_level);
+                pwm_servo_set(g_pwm_servo_up_level);
+                vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
+                gpio_hold_dis(SERVO_POWER_GPIO);
+                gpio_set_level(SERVO_POWER_GPIO, 0);
+                esp_pm_lock_release(servo_task_pm_lock);
 
-    while(xTaskNotifyWait(0,0,(uint32_t *)&servo_execution,portMAX_DELAY) == pdTRUE){
-        if(servo_execution == SERVO_EXECUTION_OFF){
-            ESP_LOGI(TAG, "SERVO_EXECUTION_OFF");
-            esp_pm_lock_acquire(servo_task_pm_lock);
-            gpio_set_level(SERVO_POWER_GPIO, 1);
-            gpio_hold_en(SERVO_POWER_GPIO);
-            g_pwm_servo_state = false;
-            pwm_servo_set(g_pwm_servo_state);
-            vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
-            gpio_hold_dis(SERVO_POWER_GPIO);
-            gpio_set_level(SERVO_POWER_GPIO, 0);
-            esp_pm_lock_release(servo_task_pm_lock);
-        }else if(servo_execution == SERVO_EXECUTION_ON){
-            ESP_LOGI(TAG, "SERVO_EXECUTION_ON");
-            esp_pm_lock_acquire(servo_task_pm_lock);
-            gpio_set_level(SERVO_POWER_GPIO, 1);
-            gpio_hold_en(SERVO_POWER_GPIO);
-            g_pwm_servo_state = true;
-            pwm_servo_set(g_pwm_servo_state);
-            vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
-            gpio_hold_dis(SERVO_POWER_GPIO);
-            gpio_set_level(SERVO_POWER_GPIO, 0);
-            esp_pm_lock_release(servo_task_pm_lock);
-        }else if(servo_execution == SERVO_EXECUTION_TOGGLE){
-            ESP_LOGI(TAG, "SERVO_EXECUTION_TOGGLE");
-            gpio_set_level(SERVO_POWER_GPIO, 1);
-            gpio_hold_en(SERVO_POWER_GPIO);
-            g_pwm_servo_state = !g_pwm_servo_state;
-            pwm_servo_set(g_pwm_servo_state);
-            vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
-            gpio_hold_dis(SERVO_POWER_GPIO);
-            gpio_set_level(SERVO_POWER_GPIO, 0);
-        }else if(servo_execution == SERVO_EXECUTION_CLICK){
-            ESP_LOGI(TAG, "SERVO_EXECUTION_CLICK");
-            gpio_set_level(SERVO_POWER_GPIO, 1);
-            gpio_hold_en(SERVO_POWER_GPIO);
-            g_pwm_servo_state = true;
-            pwm_servo_set(g_pwm_servo_state);
-            vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
-            g_pwm_servo_state = false;
-            pwm_servo_set(g_pwm_servo_state);
-            vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
-            gpio_hold_dis(SERVO_POWER_GPIO);
-            gpio_set_level(SERVO_POWER_GPIO, 0);
+            }else if(app_driver_evt.event_type == APP_DRIVER_SET_SERVO_OFF_LEVEL){
+                esp_pm_lock_acquire(servo_task_pm_lock);
+                gpio_set_level(SERVO_POWER_GPIO, 1);
+                gpio_hold_en(SERVO_POWER_GPIO);
+                g_pwm_servo_down_level = app_driver_evt.event_value;
+                app_nvs_set_limit_value(g_pwm_servo_up_level,g_pwm_servo_down_level);
+                pwm_servo_set(g_pwm_servo_down_level);
+                vTaskDelay(SERVO_EXECUTION_TIME/portTICK_PERIOD_MS);
+                gpio_hold_dis(SERVO_POWER_GPIO);
+                gpio_set_level(SERVO_POWER_GPIO, 0);
+                esp_pm_lock_release(servo_task_pm_lock);
+            }
+           
         }
-        
     }
 
 }
@@ -298,13 +347,8 @@ esp_err_t app_driver_button_init(void)
 
 void app_driver_init()
 {
-    // button_handle_t btn_handle = iot_button_create(BUTTON_GPIO, BUTTON_ACTIVE_LEVEL);
-    // if (btn_handle) {
-    //     /* Register a callback for a button tap (short press) event */
-    //     iot_button_set_evt_cb(btn_handle, BUTTON_CB_TAP, push_btn_cb, NULL);
-    //     /* Register Wi-Fi reset and factory reset functionality on same button */
-    //     app_reset_button_register(btn_handle, WIFI_RESET_BUTTON_TIMEOUT, FACTORY_RESET_BUTTON_TIMEOUT);
-    // }
+    app_nvs_get_limit_value();
+    app_driver_evt_queue = xQueueCreate(APP_DRIVER_QUEUE_SIZE, sizeof(app_driver_evt_t));
     app_driver_button_init();
 
     /* Configure power */

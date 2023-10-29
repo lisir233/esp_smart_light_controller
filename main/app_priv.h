@@ -10,6 +10,18 @@
 #include <stdbool.h>
 
 #define DEFAULT_POWER  true
+typedef enum{
+    APP_DRIVER_STATE_CHANGE = 0,
+    APP_DRIVER_SET_SERVO_ON_LEVEL,
+    APP_DRIVER_SET_SERVO_OFF_LEVEL,
+}app_driver_evt_type_t;
+
+typedef struct {
+    app_driver_evt_type_t event_type;
+    int event_value;
+}app_driver_evt_t;
+#define DEFAULT_LIMIT_UP  65
+#define DEFAULT_LIMIT_DOWN 35
 extern esp_rmaker_device_t *switch_device;
 void app_indicator_set(bool state);
 void app_driver_init(void);

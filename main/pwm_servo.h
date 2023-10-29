@@ -14,8 +14,7 @@ void pwm_servo_init(void);
  * @brief Set pwm servo status.
  * @note  
  */
-void pwm_servo_set(bool onoff);
-
+void pwm_servo_set(int value);
 #ifdef __cplusplus
 }
 #endif

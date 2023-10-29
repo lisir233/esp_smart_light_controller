@@ -31,21 +31,37 @@
 #include <esp_wifi.h>
 static const char *TAG = "app_main";
 esp_rmaker_device_t *switch_device;
+extern QueueHandle_t app_driver_evt_queue;
+extern int g_pwm_servo_up_level;
+extern int g_pwm_servo_down_level;
+#define RMAKER_DEF_LIMIT_UP_PARAM "Limit Up"
+#define RMAKER_DEF_LIMIT_DOWN_PARAM "Limit Down"
 
 /* Callback to handle commands received from the RainMaker cloud */
 static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_param_t *param,
             const esp_rmaker_param_val_t val, void *priv_data, esp_rmaker_write_ctx_t *ctx)
 {
+    app_driver_evt_t app_driver_evt;
     if (ctx) {
         ESP_LOGI(TAG, "Received write request via : %s", esp_rmaker_device_cb_src_to_str(ctx->src));
     }
     if (strcmp(esp_rmaker_param_get_name(param), ESP_RMAKER_DEF_POWER_NAME) == 0) {
         ESP_LOGI(TAG, "Received value = %s for %s - %s",
                 val.val.b? "true" : "false", esp_rmaker_device_get_name(device),
-                esp_rmaker_param_get_name(param));
+                esp_rmaker_param_get_name(param));        
         app_driver_set_state(val.val.b);
         esp_rmaker_param_update_and_report(param, val);
         app_homekit_update_state(val.val.b);
+    }
+    if(strcmp(esp_rmaker_param_get_name(param), RMAKER_DEF_LIMIT_UP_PARAM) == 0){
+        app_driver_evt.event_type = APP_DRIVER_SET_SERVO_ON_LEVEL;
+        app_driver_evt.event_value = val.val.i;
+        xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
+    }
+    if(strcmp(esp_rmaker_param_get_name(param), RMAKER_DEF_LIMIT_DOWN_PARAM) == 0){
+        app_driver_evt.event_type = APP_DRIVER_SET_SERVO_OFF_LEVEL;
+        app_driver_evt.event_value = val.val.i;
+        xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
     }
     return ESP_OK;
 }
@@ -146,9 +162,6 @@ void app_main()
      * set initial state.
      */
     esp_rmaker_console_init();
-    app_driver_init();
-    app_driver_set_state(DEFAULT_POWER);
-
     /* Initialize NVS. */
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -156,21 +169,8 @@ void app_main()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK( err );
-    
-#if CONFIG_PM_ENABLE
-    // Configure dynamic frequency scaling:
-    // maximum and minimum frequencies are set in sdkconfig,
-    // automatic light sleep is enabled if tickless idle support is enabled.
-    esp_pm_config_esp32c3_t pm_config = {
-            .max_freq_mhz = 160,
-            .min_freq_mhz = 80,
-#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-            .light_sleep_enable = true,
-#endif
-    };
-    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
-#endif // CONFIG_PM_ENABLE
-
+    app_driver_init();
+    app_driver_set_state(DEFAULT_POWER);
     /* Initialize Wi-Fi. Note that, this should be called before esp_rmaker_node_init()
      */
     app_wifi_with_homekit_init();
@@ -223,6 +223,10 @@ void app_main()
      */
     esp_rmaker_param_t *power_param = esp_rmaker_power_param_create(ESP_RMAKER_DEF_POWER_NAME, DEFAULT_POWER);
     esp_rmaker_device_add_param(switch_device, power_param);
+    esp_rmaker_param_t *limit_up_param = esp_rmaker_intensity_param_create(RMAKER_DEF_LIMIT_UP_PARAM, g_pwm_servo_up_level);
+    esp_rmaker_device_add_param(switch_device, limit_up_param);    
+    esp_rmaker_param_t *limit_down_param = esp_rmaker_intensity_param_create(RMAKER_DEF_LIMIT_DOWN_PARAM, g_pwm_servo_down_level);
+    esp_rmaker_device_add_param(switch_device, limit_down_param);  
 
     /* Assign the power parameter as the primary, so that it can be controlled from the
      * home screen of the phone apps.
@@ -255,4 +259,18 @@ void app_main()
         vTaskDelay(5000/portTICK_PERIOD_MS);
         abort();
     }   
+#if CONFIG_PM_ENABLE
+    printf("CONFIG_PM_ENABLE\n");
+        // Configure dynamic frequency scaling:
+        // maximum and minimum frequencies are set in sdkconfig,
+        // automatic light sleep is enabled if tickless idle support is enabled.
+    esp_pm_config_esp32c3_t pm_config = {
+            .max_freq_mhz = 160,
+            .min_freq_mhz = 80,
+#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
+            .light_sleep_enable = true,
+#endif
+    };
+        ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+#endif // CONFIG_PM_ENABLE
 }

@@ -227,7 +227,6 @@ static void push_btn_cb(void *arg)
     esp_rmaker_param_update_and_report(
     esp_rmaker_device_get_param_by_name(switch_device, ESP_RMAKER_DEF_POWER_NAME),
     esp_rmaker_bool(new_state));
-    app_homekit_update_state(new_state);
     
 }
 

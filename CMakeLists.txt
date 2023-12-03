@@ -2,10 +2,6 @@
 # in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.5)
 
-if(NOT DEFINED ENV{HOMEKIT_PATH})
-    message(FATAL_ERROR "Please set HOMEKIT_PATH to esp-homekit-sdk repo")
-endif(NOT DEFINED ENV{HOMEKIT_PATH})
-
 if(DEFINED ENV{RMAKER_PATH})
   set(RMAKER_PATH $ENV{RMAKER_PATH})
 else()
@@ -13,10 +9,8 @@ else()
 endif(DEFINED ENV{RMAKER_PATH})
 
 # Add RainMaker components and other common application components
-set(EXTRA_COMPONENT_DIRS $ENV{HOMEKIT_PATH}/components/homekit ${RMAKER_PATH}/components/esp-insights/components ${RMAKER_PATH}/components ${RMAKER_PATH}/examples/common components)
-
+set(EXTRA_COMPONENT_DIRS  ${RMAKER_PATH}/components/esp-insights/components ${RMAKER_PATH}/components ${RMAKER_PATH}/examples/common)
 set(PROJECT_VER "1.0")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 add_compile_options(-fdiagnostics-color=always)
-project(esp_smart_light_controller
-)
+project(esp_smart_light_controller)

@@ -29,7 +29,11 @@
 #include <app_wifi.h>
 #include <app_insights.h>
 
+#include "esp_pm.h"
+#include <esp_wifi.h>
+
 #include "app_priv.h"
+#include <freertos/queue.h>
 
 static const char *TAG = "app_main";
 esp_rmaker_device_t *switch_device;
@@ -39,11 +43,12 @@ esp_rmaker_device_t *switch_device;
 #define DEFAULT_LIMIT_UP 80
 #define DEFAULT_LIMIT_DOWN 60
 
-
+extern QueueHandle_t app_driver_evt_queue;
 /* Callback to handle commands received from the RainMaker cloud */
 static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_param_t *param,
             const esp_rmaker_param_val_t val, void *priv_data, esp_rmaker_write_ctx_t *ctx)
 {
+    app_driver_evt_t app_driver_evt;
     if (ctx) {
         ESP_LOGI(TAG, "Received write request via : %s", esp_rmaker_device_cb_src_to_str(ctx->src));
     }
@@ -56,15 +61,15 @@ static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_pa
     }
     if(strcmp(esp_rmaker_param_get_name(param), RMAKER_DEF_LIMIT_UP_PARAM) == 0){
         ESP_LOGI(TAG, "type %s value %d",RMAKER_DEF_LIMIT_UP_PARAM,val.val.i);
-        // app_driver_evt.event_type = APP_DRIVER_SET_SERVO_ON_LEVEL;
-        // app_driver_evt.event_value = val.val.i;
-        // xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
+        app_driver_evt.event_type = APP_DRIVER_SET_SERVO_ON_LEVEL;
+        app_driver_evt.event_value = val.val.i;
+        xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
     }
     if(strcmp(esp_rmaker_param_get_name(param), RMAKER_DEF_LIMIT_DOWN_PARAM) == 0){
         ESP_LOGI(TAG, "type %s value %d",RMAKER_DEF_LIMIT_DOWN_PARAM,val.val.i);
-        // app_driver_evt.event_type = APP_DRIVER_SET_SERVO_OFF_LEVEL;
-        // app_driver_evt.event_value = val.val.i;
-        // xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
+        app_driver_evt.event_type = APP_DRIVER_SET_SERVO_OFF_LEVEL;
+        app_driver_evt.event_value = val.val.i;
+        xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
     }
     return ESP_OK;
 }
@@ -262,6 +267,31 @@ void app_main()
      * after a connection has been successfully established
      */
     err = app_wifi_start(POP_TYPE_RANDOM);
+
+#if CONFIG_PM_ENABLE
+        printf("CONFIG_PM_ENABLE\n");
+            // Configure dynamic frequency scaling:
+            // maximum and minimum frequencies are set in sdkconfig,
+            // automatic light sleep is enabled if tickless idle support is enabled.
+        esp_pm_config_esp32c3_t pm_config = {
+                .max_freq_mhz = 160,
+                .min_freq_mhz = 80,
+    #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
+                .light_sleep_enable = true,
+    #endif
+        };
+        ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
+        
+#endif
+    wifi_config_t wifi_config;
+    ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &wifi_config));
+    if(strcmp((char *)wifi_config.sta.ssid,"") != 0){
+        wifi_config.sta.listen_interval = 10;
+        err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+        esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+        printf("WIFI_PS_MAX_MODEM set!\n");
+    }
+
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Could not start Wifi. Aborting!!!");
         vTaskDelay(5000/portTICK_PERIOD_MS);

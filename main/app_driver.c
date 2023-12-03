@@ -118,14 +118,10 @@ void app_nvs_set_limit_value(int up,int down)
         err = nvs_set_i32(nvs_handle, "up", up);
         if (err != ESP_OK) {
             printf("Error setting value!\n");
-        } else {
-            printf("Value set!\n");
-        }
+        } 
         err = nvs_set_i32(nvs_handle, "down", down);
         if (err != ESP_OK) {
             printf("Error setting value!\n");
-        } else {
-            printf("Value set!\n");
         }
 
         // 提交更改

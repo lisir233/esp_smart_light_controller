@@ -1,4 +1,4 @@
-/* HomeKit Switch Example
+/* Switch Example
 
    This example code is in the Public Domain (or CC0 licensed, at your option.)
 
@@ -19,49 +19,52 @@
 #include <esp_rmaker_standard_types.h>
 #include <esp_rmaker_standard_params.h>
 #include <esp_rmaker_standard_devices.h>
-#include <esp_rmaker_ota.h>
+#include <esp_rmaker_schedule.h>
+#include <esp_rmaker_scenes.h>
 #include <esp_rmaker_console.h>
+#include <esp_rmaker_ota.h>
+
 #include <esp_rmaker_common_events.h>
 
+#include <app_wifi.h>
 #include <app_insights.h>
 
-#include "app_wifi_with_homekit.h"
 #include "app_priv.h"
-#include "esp_pm.h"
-#include <esp_wifi.h>
+
 static const char *TAG = "app_main";
 esp_rmaker_device_t *switch_device;
-extern QueueHandle_t app_driver_evt_queue;
-extern int g_pwm_servo_up_level;
-extern int g_pwm_servo_down_level;
+
 #define RMAKER_DEF_LIMIT_UP_PARAM "Limit Up"
 #define RMAKER_DEF_LIMIT_DOWN_PARAM "Limit Down"
+#define DEFAULT_LIMIT_UP 80
+#define DEFAULT_LIMIT_DOWN 60
+
 
 /* Callback to handle commands received from the RainMaker cloud */
 static esp_err_t write_cb(const esp_rmaker_device_t *device, const esp_rmaker_param_t *param,
             const esp_rmaker_param_val_t val, void *priv_data, esp_rmaker_write_ctx_t *ctx)
 {
-    app_driver_evt_t app_driver_evt;
     if (ctx) {
         ESP_LOGI(TAG, "Received write request via : %s", esp_rmaker_device_cb_src_to_str(ctx->src));
     }
     if (strcmp(esp_rmaker_param_get_name(param), ESP_RMAKER_DEF_POWER_NAME) == 0) {
         ESP_LOGI(TAG, "Received value = %s for %s - %s",
                 val.val.b? "true" : "false", esp_rmaker_device_get_name(device),
-                esp_rmaker_param_get_name(param));        
+                esp_rmaker_param_get_name(param));
         app_driver_set_state(val.val.b);
         esp_rmaker_param_update_and_report(param, val);
-        app_homekit_update_state(val.val.b);
     }
     if(strcmp(esp_rmaker_param_get_name(param), RMAKER_DEF_LIMIT_UP_PARAM) == 0){
-        app_driver_evt.event_type = APP_DRIVER_SET_SERVO_ON_LEVEL;
-        app_driver_evt.event_value = val.val.i;
-        xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
+        ESP_LOGI(TAG, "type %s value %d",RMAKER_DEF_LIMIT_UP_PARAM,val.val.i);
+        // app_driver_evt.event_type = APP_DRIVER_SET_SERVO_ON_LEVEL;
+        // app_driver_evt.event_value = val.val.i;
+        // xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
     }
     if(strcmp(esp_rmaker_param_get_name(param), RMAKER_DEF_LIMIT_DOWN_PARAM) == 0){
-        app_driver_evt.event_type = APP_DRIVER_SET_SERVO_OFF_LEVEL;
-        app_driver_evt.event_value = val.val.i;
-        xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
+        ESP_LOGI(TAG, "type %s value %d",RMAKER_DEF_LIMIT_DOWN_PARAM,val.val.i);
+        // app_driver_evt.event_type = APP_DRIVER_SET_SERVO_OFF_LEVEL;
+        // app_driver_evt.event_value = val.val.i;
+        // xQueueSend(app_driver_evt_queue, &app_driver_evt, 0);
     }
     return ESP_OK;
 }
@@ -162,6 +165,9 @@ void app_main()
      * set initial state.
      */
     esp_rmaker_console_init();
+    app_driver_init();
+    app_driver_set_state(DEFAULT_POWER);
+
     /* Initialize NVS. */
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -169,27 +175,19 @@ void app_main()
         err = nvs_flash_init();
     }
     ESP_ERROR_CHECK( err );
-    app_driver_init();
-    app_driver_set_state(DEFAULT_POWER);
+
     /* Initialize Wi-Fi. Note that, this should be called before esp_rmaker_node_init()
      */
-    app_wifi_with_homekit_init();
+    app_wifi_init();
 
-    wifi_config_t wifi_config;
-    ESP_ERROR_CHECK(esp_wifi_get_config(WIFI_IF_STA, &wifi_config));
-    if(strcmp((char *)wifi_config.sta.ssid,"") != 0){
-        wifi_config.sta.listen_interval = 4;
-        err = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
-        esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
-        printf("WIFI_PS_MAX_MODEM set!\n");
-    }
     /* Register an event handler to catch RainMaker events */
     ESP_ERROR_CHECK(esp_event_handler_register(RMAKER_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(RMAKER_COMMON_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(APP_WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(RMAKER_OTA_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
+
     /* Initialize the ESP RainMaker Agent.
-     * Note that this should be called after app_wifi_with_homekit_init() but before app_wifi_with_homekit_start()
+     * Note that this should be called after app_wifi_init() but before app_wifi_start()
      * */
     esp_rmaker_config_t rainmaker_cfg = {
         .enable_time_sync = false,
@@ -223,9 +221,9 @@ void app_main()
      */
     esp_rmaker_param_t *power_param = esp_rmaker_power_param_create(ESP_RMAKER_DEF_POWER_NAME, DEFAULT_POWER);
     esp_rmaker_device_add_param(switch_device, power_param);
-    esp_rmaker_param_t *limit_up_param = esp_rmaker_intensity_param_create(RMAKER_DEF_LIMIT_UP_PARAM, g_pwm_servo_up_level);
+    esp_rmaker_param_t *limit_up_param = esp_rmaker_intensity_param_create(RMAKER_DEF_LIMIT_UP_PARAM, DEFAULT_LIMIT_UP);
     esp_rmaker_device_add_param(switch_device, limit_up_param);    
-    esp_rmaker_param_t *limit_down_param = esp_rmaker_intensity_param_create(RMAKER_DEF_LIMIT_DOWN_PARAM, g_pwm_servo_down_level);
+    esp_rmaker_param_t *limit_down_param = esp_rmaker_intensity_param_create(RMAKER_DEF_LIMIT_DOWN_PARAM, DEFAULT_LIMIT_DOWN);
     esp_rmaker_device_add_param(switch_device, limit_down_param);  
 
     /* Assign the power parameter as the primary, so that it can be controlled from the
@@ -239,38 +237,34 @@ void app_main()
     /* Enable OTA */
     esp_rmaker_ota_enable_default();
 
+    /* Enable timezone service which will be require for setting appropriate timezone
+     * from the phone apps for scheduling to work correctly.
+     * For more information on the various ways of setting timezone, please check
+     * https://rainmaker.espressif.com/docs/time-service.html.
+     */
+    esp_rmaker_timezone_service_enable();
+
+    /* Enable scheduling. */
+    esp_rmaker_schedule_enable();
+
+    /* Enable Scenes */
+    esp_rmaker_scenes_enable();
+
     /* Enable Insights. Requires CONFIG_ESP_INSIGHTS_ENABLED=y */
     app_insights_enable();
 
     /* Start the ESP RainMaker Agent */
     esp_rmaker_start();
 
-    /* Start the HomeKit module */
-    app_homekit_start(DEFAULT_POWER);
-
     /* Start the Wi-Fi.
      * If the node is provisioned, it will start connection attempts,
      * else, it will start Wi-Fi provisioning. The function will return
      * after a connection has been successfully established
      */
-    err = app_wifi_with_homekit_start(POP_TYPE_RANDOM);
+    err = app_wifi_start(POP_TYPE_RANDOM);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Could not start Wifi. Aborting!!!");
         vTaskDelay(5000/portTICK_PERIOD_MS);
         abort();
-    }   
-#if CONFIG_PM_ENABLE
-    printf("CONFIG_PM_ENABLE\n");
-        // Configure dynamic frequency scaling:
-        // maximum and minimum frequencies are set in sdkconfig,
-        // automatic light sleep is enabled if tickless idle support is enabled.
-    esp_pm_config_esp32c3_t pm_config = {
-            .max_freq_mhz = 160,
-            .min_freq_mhz = 80,
-#if CONFIG_FREERTOS_USE_TICKLESS_IDLE
-            .light_sleep_enable = true,
-#endif
-    };
-        ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
-#endif // CONFIG_PM_ENABLE
+    }
 }

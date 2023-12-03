@@ -56,7 +56,12 @@ Prerequisites: You have an ESP32-C3 Switch Panda. Other ESP32-C3 development boa
 3. Done!
 
 ## Compilation and Code Modification
-
+**Dependence:**
+ Framework    | Version |
+| ----------- | ------- |
+| ESP-IDF     | 5.0+    |
+| Rainmaker   | master  |
+| HomeKit     | master  |
 If you want to make modifications based on this code, please follow the steps below to compile:
 
 Prerequisites: ESP-IDF needs to be installed, and the code for ESP Rainmaker and ESP HomeKit SDK needs to be pulled. Links are provided, and if you encounter any issues, please feel free to open an issue in the project.
